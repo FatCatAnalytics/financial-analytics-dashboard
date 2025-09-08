@@ -25,18 +25,25 @@ The offline installation process involves two steps:
 
 ---
 
-## 🔄 Step 1: Bundle Dependencies (Internet Required)
+## 🔄 Step 1: Get Complete Offline Package
 
+You have **TWO OPTIONS**:
+
+### **Option A: Clone + Bundle (Recommended)**
 Run this on a machine with internet access:
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/financial-analytics-dashboard.git
+git clone https://github.com/FatCatAnalytics/financial-analytics-dashboard.git
 cd financial-analytics-dashboard
 
 # Bundle all dependencies
 ./bundle-dependencies.sh
 ```
+
+### **Option B: Download Complete Package**
+Download the complete offline package (163MB) from GitHub Releases:
+- **`financial-dashboard-complete-offline.tar.gz`** - Contains EVERYTHING (source code + dependencies)
 
 This creates:
 - `offline-deps/` directory with all dependencies
