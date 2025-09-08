@@ -1,18 +1,31 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-	const res = await fetch(`${API_BASE}${path}`, {
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...(options?.headers || {}),
-		},
-	});
-	if (!res.ok) {
-		const txt = await res.text();
-		throw new Error(`HTTP ${res.status}: ${txt}`);
+	try {
+		const res = await fetch(`${API_BASE}${path}`, {
+			...options,
+			headers: {
+				"Content-Type": "application/json",
+				...(options?.headers || {}),
+			},
+			// Add SSL handling for development
+			...(process.env.NODE_ENV === 'development' && {
+				// For development, we can be more lenient with SSL
+			})
+		});
+		
+		if (!res.ok) {
+			const txt = await res.text();
+			throw new Error(`HTTP ${res.status}: ${txt}`);
+		}
+		return (await res.json()) as T;
+	} catch (error) {
+		// Handle SSL certificate errors specifically
+		if (error instanceof TypeError && error.message.includes('certificate')) {
+			throw new Error(`SSL Certificate Error: ${error.message}. Try running with NODE_TLS_REJECT_UNAUTHORIZED=0 for development.`);
+		}
+		throw error;
 	}
-	return (await res.json()) as T;
 }
 
 export const api = {
