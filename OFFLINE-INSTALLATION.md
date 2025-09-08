@@ -66,10 +66,13 @@ scp -r financial-analytics-dashboard/ user@target-machine:/path/to/destination/
 
 ### Option B: Use Archive
 ```bash
-# Transfer the compressed archive
-scp financial-dashboard-offline-deps.tar.gz user@target-machine:/path/to/destination/
+# Download from GitHub Releases
+wget https://github.com/FatCatAnalytics/financial-analytics-dashboard/releases/download/v1.0.0-offline-bundle/financial-dashboard-offline-deps.tar.gz
 
-# On target machine, extract
+# Or use the download script
+./download-bundle.sh
+
+# Extract
 tar -xzf financial-dashboard-offline-deps.tar.gz
 ```
 
