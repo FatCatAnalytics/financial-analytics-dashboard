@@ -3,8 +3,9 @@ import pandas as pd
 import os
 import socket
 from importlib import import_module
+
 try:
-    load_dotenv = import_module("dotenv").load_dotenv  # type: ignore[attr-defined]
+    load_dotenv = import_module("dotenv").load_dotenv
 except ModuleNotFoundError:
     def load_dotenv() -> None:
         return None
@@ -99,68 +100,150 @@ def get_db_connection() -> Optional[Any]:
         print(f"Connection error: {e}")
         return None
 
+
 def get_db_connection_uri() -> Optional[str]:
-    """Build a PostgreSQL connection URI for use with Polars/ConnectorX."""
-    if not validate_env_variables():
+    """Get database connection URI for SQLAlchemy and Polars"""
+    try:
+        load_dotenv()
+
+        host = os.getenv('DB_HOST')
+        database = os.getenv('DB_NAME')
+        user = os.getenv('DB_USER')
+        password = os.getenv('DB_PASSWORD')
+        port = os.getenv('DB_PORT', '5432')
+
+        if not all([host, database, user, password]):
+            missing = [k for k, v in {'host': host, 'database': database, 'user': user, 'password': password}.items() if
+                       not v]
+            print(f"Missing required environment variables: {missing}")
+            return None
+
+        # Clean the password by removing quotes if they exist
+        if password.startswith("'") and password.endswith("'"):
+            password = password[1:-1]
+        elif password.startswith('"') and password.endswith('"'):
+            password = password[1:-1]
+
+        # URL encode the password to handle special characters
+        from urllib.parse import quote_plus
+        encoded_password = quote_plus(password)
+
+        # Construct the PostgreSQL URI
+        connection_uri = f"postgresql://{user}:{encoded_password}@{host}:{port}/{database}"
+        print(f"Database URI constructed: postgresql://{user}:***@{host}:{port}/{database}")
+
+        return connection_uri
+
+    except Exception as e:
+        print(f"Error creating database URI: {e}")
         return None
 
-    user = os.getenv('DB_USER')
-    password = os.getenv('DB_PASSWORD') or ""
-    host = os.getenv('DB_HOST')
-    port = os.getenv('DB_PORT')
-    db_name = os.getenv('DB_NAME')
 
-    # URL-encode the password to safely handle special characters
-    password_enc = quote_plus(password)
-    # Prefer standard ConnectorX scheme for Postgres
-    params = "sslmode=require&application_name=large_data_transfer"
-    return f"postgresql://{user}:{password_enc}@{host}:{port}/{db_name}?{params}"
-
-
-def test_db_connection():
-    """Test database connection and return status"""
+def test_db_connection() -> Dict[str, Any]:
+    """Test database connection and return connection status with max date"""
     try:
-        # Test basic connection
         conn = get_db_connection()
-        if conn is None:
-            return {"status": "failed", "error": "Unable to establish database connection"}
-        
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1 as test_connection")
-        result = cursor.fetchone()
-        cursor.close()
+        if not conn:
+            return {
+                "status": "failed",
+                "error": "Could not establish connection",
+                "max_date": None
+            }
+
+        # Get the database version
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT version()")
+            version = cursor.fetchone()[0]
+
+            # Get the max processing date
+            cursor.execute('SELECT MAX("ProcessingDateKey") FROM cla_uat.mv_t_cla_input_full_upd')  # Replace with actual table name
+            max_date = cursor.fetchone()[0]
+
         conn.close()
-        
-        if result:
-            return {"status": "connected", "method": "psycopg2", "test_result": result[0]}
-        else:
-            return {"status": "failed", "error": "Query returned no results"}
-            
+
+        return {
+            "status": "connected",
+            "version": version,
+            "max_date": max_date
+        }
     except Exception as e:
-        return {"status": "failed", "error": str(e)}
+        return {
+            "status": "failed",
+            "error": str(e),
+            "max_date": None
+        }
 
 
 def read_sql_polars(query: str) -> Optional[pl.DataFrame]:
-    """Read SQL into a Polars DataFrame using a connection URI with pandas fallback."""
-    uri = get_db_connection_uri()
-    if uri is None:
-        return None
+    """Read SQL query using Polars with proper connection handling"""
     try:
-        return pl.read_database(query, uri)
-    except Exception as e:
-        print(f"Polars read_database failed, falling back to pandas: {e}")
-        conn = get_db_connection()
-        if conn is None:
+        print(f"Executing query with Polars: {query[:100]}...")
+
+        # Get the connection URI instead of a connection object
+        connection_uri = get_db_connection_uri()
+        if not connection_uri:
+            print("No database connection URI available")
             return None
+
+        # Use Polars read_database_uri method
+        df = pl.read_database_uri(
+            query=query,
+            uri=connection_uri
+        )
+        print(f"Polars query successful, returned {len(df)} rows")
+        return df
+
+    except Exception as e:
+        print(f"Polars read_database_uri failed: {e}")
+
+        # Fallback to pandas with SQLAlchemy engine
         try:
-            pdf = pd.read_sql_query(query, conn)
-        finally:
-            conn.close()
-        return pl.from_pandas(pdf)
+            print("Falling back to pandas with SQLAlchemy...")
+            from sqlalchemy import create_engine
+
+            connection_uri = get_db_connection_uri()
+            if not connection_uri:
+                return None
+
+            engine = create_engine(connection_uri)
+
+            # Use pandas with SQLAlchemy engine
+            df_pandas = pd.read_sql(query, engine)
+
+            # Convert pandas DataFrame to Polars DataFrame
+            df_polars = pl.from_pandas(df_pandas)
+            print(f"Pandas fallback successful, returned {len(df_polars)} rows")
+
+            engine.dispose()
+            return df_polars
+
+        except Exception as pandas_error:
+            print(f"Pandas fallback also failed: {pandas_error}")
+            return None
+
 
 def get_available_sba_classifications() -> List[str]:
     """Get SBA classification options (simpler since these are fixed)"""
     return ['All', 'SBA', 'Non-SBA']
+
+
+def get_max_processing_date() -> Optional[str]:
+    """Get the maximum ProcessingDateKey from the database."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return None
+
+        with conn.cursor() as cursor:
+            # Replace 'your_table' with the actual table name containing ProcessingDateKey
+            cursor.execute('SELECT MAX("ProcessingDateKey") FROM cla_uat.mv_t_cla_input_full_upd')
+            max_date = cursor.fetchone()[0]
+
+        conn.close()
+        return max_date
+    except Exception as e:
+        print(f"Error getting max processing date: {e}")
+        return None
 
 
 def get_available_line_of_business_ids(use_polars: bool = True) -> List[Dict[str, str]]:

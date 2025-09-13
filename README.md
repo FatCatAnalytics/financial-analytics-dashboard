@@ -1,89 +1,279 @@
-# Financial Analytics Dashboard
+# Volume Composites Dashboard
 
-A comprehensive financial analytics dashboard with capped vs uncapped composite analysis, built with Python backend and React frontend.
-
-## Features
-
-- **Real-time Database Integration**: PostgreSQL database with CSV fallback
-- **Advanced Filtering**: Multi-dimensional filtering across regions, business lines, risk groups
-- **Capped Analysis**: Integrated `testCappedvsUncapped` function for sophisticated composite analysis
-- **Professional Visualizations**: 6 different chart views with interactive data
-- **Modern UI**: Built with Next.js, TypeScript, Tailwind CSS, and Figma components
+A full-stack financial analytics dashboard that connects React frontend to PostgreSQL database via FastAPI backend.
 
 ## Architecture
 
-### Backend (Python/FastAPI)
-- **`main.py`**: Core data processing and composite analysis logic
-- **`api.py`**: FastAPI REST API with PostgreSQL and CSV endpoints
-- **`data_processor.py`**: CSV data processing and transformation utilities
-
-### Frontend (Next.js/React)
-- **Dashboard**: Main analytics dashboard with status cards and filter panel
-- **Data View**: Rich data table with percentage badges and analysis results
-- **Charts**: 6-tab visualization (Time Series, Benchmark, Individual, Actual vs Model, Differences, Overview)
-- **Analysis**: Dedicated capped vs uncapped analysis interface
+```
+Frontend (React/TypeScript) ←→ Backend (FastAPI/Python) ←→ PostgreSQL Database
+     ↓                              ↓                           ↓
+- Modern UI with Tailwind     - REST API endpoints        - Sample CSV data
+- Real-time data display      - Database connectivity     - Aggregated views
+- Interactive filtering       - Data processing           - Performance indexes
+```
 
 ## Quick Start
 
-### 1. Backend Setup
-```bash
-# Install dependencies
-pip install -r requirements.txt
+### Prerequisites
 
-# Start API server
-uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+- **PostgreSQL** (version 12+)
+- **Python** (version 3.8+)
+- **Node.js** (version 16+)
+- **npm** or **yarn**
+
+### 1. Start PostgreSQL
+
+**macOS:**
+```bash
+brew services start postgresql
 ```
 
-### 2. Frontend Setup
+**Ubuntu/Linux:**
+```bash
+sudo systemctl start postgresql
+```
+
+**Windows:**
+Start PostgreSQL service from the Services panel
+
+### 2. Run the Setup Script
+
+```bash
+# From the project root directory
+python start_services.py
+```
+
+This script will:
+- ✅ Check PostgreSQL connection
+- ✅ Create `.env` configuration file
+- ✅ Install Python dependencies
+- ✅ Set up database and import sample.csv data
+- ✅ Start the FastAPI backend server
+
+### 3. Start the Frontend
+
+In a new terminal:
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-### 3. Database Configuration (Optional)
-Create `.env` file for PostgreSQL connection:
+### 4. Access the Dashboard
+
+Open your browser to: **http://localhost:5173**
+
+## Manual Setup (Alternative)
+
+If you prefer to set up manually:
+
+### Backend Setup
+
+1. **Install Python dependencies:**
+```bash
+pip install -r requirements.txt
+```
+
+2. **Configure environment:**
+Create `.env` file:
 ```env
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=your_database
-DB_USER=your_username
+DB_NAME=volume_composites
+DB_USER=postgres
 DB_PASSWORD=your_password
+API_PORT=8000
 ```
+
+3. **Set up database:**
+```bash
+python setup_database.py
+```
+
+4. **Start backend:**
+```bash
+python backend_api.py
+```
+
+### Frontend Setup
+
+1. **Install dependencies:**
+```bash
+cd frontend
+npm install
+```
+
+2. **Start development server:**
+```bash
+npm run dev
+```
+
+## Database Schema
+
+The application uses a PostgreSQL database with the following structure:
+
+### Main Table: `analytics_data`
+- **ProcessingDateKey**: Date in YYYYMMDD format
+- **CommitmentAmt**: Loan commitment amount
+- **OutstandingAmt**: Outstanding amount
+- **Region**: Geographic region
+- **LineofBusinessId**: Business line identifier
+- **CommitmentSizeGroup**: Size category
+- **RiskGroupDesc**: Risk classification
+- **BankID**: Bank identifier
+- Plus additional fields from sample.csv
+
+### Aggregated View: `aggregated_analytics`
+- Monthly summaries with period-over-period calculations
+- Automatically calculated differences (ca_diff, oa_diff, deals_diff)
+- Optimized for dashboard queries
 
 ## API Endpoints
 
-- **`GET /health`**: Health check
-- **`GET /db/status`**: Database connection status
-- **`GET /filters`**: Available filter options (database or CSV fallback)
-- **`POST /data`**: Filtered analytics data (database or CSV fallback)
-- **`POST /composites`**: Composite analysis results
-- **`POST /analysis/capped-vs-uncapped`**: Run testCappedvsUncapped function
+### Connection & Health
+- `GET /health` - Health check
+- `GET /api/connection-status` - Database connection status
+
+### Data Endpoints
+- `GET /api/filter-options` - Available filter values
+- `POST /api/query` - Execute filtered queries
+- `GET /api/analytics-data` - Time series analytics data
+- `GET /api/summary-stats` - Summary statistics
+
+### Example API Usage
+
+**Get filter options:**
+```bash
+curl http://localhost:8000/api/filter-options
+```
+
+**Execute filtered query:**
+```bash
+curl -X POST http://localhost:8000/api/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filters": {
+      "region": ["Southeast", "Northeast"],
+      "lineOfBusiness": ["1 - Commercial Banking"]
+    },
+    "limit": 100
+  }'
+```
+
+## Features
+
+### Frontend Features
+- 📊 **Interactive Dashboard** - Real-time data visualization
+- 🔍 **Advanced Filtering** - Multiple filter types with custom ranges
+- 📈 **Charts & Tables** - Multiple data visualization modes
+- 🔗 **Live Connection Status** - Real-time database connection monitoring
+- 📱 **Responsive Design** - Works on desktop and mobile
+
+### Backend Features
+- 🚀 **FastAPI** - High-performance async API
+- 🔒 **CORS Enabled** - Secure cross-origin requests
+- 📊 **PostgreSQL Integration** - Optimized database queries
+- 🛡️ **Error Handling** - Comprehensive error management
+- 📈 **Performance Optimized** - Indexed queries and efficient data processing
+
+### Database Features
+- 🗄️ **PostgreSQL** - Reliable, scalable database
+- 📊 **Aggregated Views** - Pre-calculated analytics
+- 🔍 **Indexed Queries** - Fast filtering and searching
+- 📈 **Time Series Data** - Historical trend analysis
 
 ## Data Flow
 
+1. **Sample CSV** → PostgreSQL database (via setup_database.py)
+2. **Frontend filters** → API request (via api.ts service)
+3. **API processes** → Database query (via backend_api.py)
+4. **Database returns** → Processed data (via PostgreSQL views)
+5. **API responds** → Frontend updates (via React state)
+
+## Troubleshooting
+
+### Database Connection Issues
+
+**Error: "Connection failed"**
+- Check if PostgreSQL is running
+- Verify credentials in `.env` file
+- Test connection: `psql -h localhost -p 5432 -U postgres`
+
+### Backend Issues
+
+**Error: "Port already in use"**
+- Kill existing process: `pkill -f backend_api.py`
+- Change port in `.env`: `API_PORT=8001`
+
+**Error: "Module not found"**
+- Install dependencies: `pip install -r requirements.txt`
+
+### Frontend Issues
+
+**Error: "Cannot connect to backend"**
+- Ensure backend is running on http://localhost:8000
+- Check CORS configuration in backend_api.py
+- Verify API_URL in frontend environment
+
+### Data Issues
+
+**Error: "No data returned"**
+- Check if sample.csv was imported: `python setup_database.py`
+- Verify data exists: Query `SELECT COUNT(*) FROM analytics_data;`
+
+## Development
+
+### Adding New Features
+
+1. **Backend**: Add endpoints in `backend_api.py`
+2. **Frontend**: Add API calls in `src/services/api.ts`
+3. **Database**: Modify schema in `setup_database.py`
+
+### Environment Variables
+
+**Backend (.env):**
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=volume_composites
+DB_USER=postgres
+DB_PASSWORD=password
+API_PORT=8000
 ```
-PostgreSQL Database (Primary) → API Endpoints → React Dashboard
-        ↓ (fallback)
-CSV Data (test-2.csv) → Processed Data → Charts & Tables
+
+**Frontend:**
+```env
+VITE_API_URL=http://localhost:8000
 ```
 
-## URLs
+## Production Deployment
 
-- **Frontend Dashboard**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
+### Backend Deployment
+- Use production PostgreSQL instance
+- Set secure environment variables
+- Use production WSGI server (gunicorn)
+- Enable SSL/HTTPS
 
-## Pages
+### Frontend Deployment
+- Build for production: `npm run build`
+- Deploy static files to CDN/web server
+- Update API_URL for production backend
 
-- **`/`**: Main dashboard with status and filter panel
-- **`/filters`**: Advanced filtering interface
-- **`/data`**: Data table with capped analysis results
-- **`/composites`**: Chart visualizations with all analysis tabs
-- **`/analysis`**: Direct access to capped vs uncapped analysis
+### Database Deployment
+- Use managed PostgreSQL service
+- Set up proper backup strategy
+- Configure connection pooling
+- Monitor performance metrics
 
-## Technologies
+## Support
 
-**Backend**: Python, FastAPI, Polars, Pandas, PostgreSQL, psycopg2
-**Frontend**: Next.js, TypeScript, Tailwind CSS, Recharts, Radix UI
-**Data**: PostgreSQL database with CSV fallback support
+For issues and questions:
+1. Check this README for common solutions
+2. Review the error logs in terminal
+3. Verify all prerequisites are installed
+4. Test individual components (database → backend → frontend)
+
+## License
+
+This project is for internal use and development purposes.

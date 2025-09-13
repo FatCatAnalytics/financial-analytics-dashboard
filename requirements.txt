@@ -1,10 +1,21 @@
-fastapi>=0.115
-uvicorn[standard]>=0.30
-polars>=1.2
-pandas>=2.2
-numpy>=2.2
-python-dotenv>=1.0
-psycopg2-binary>=2.9
-requests>=2.32
-certifi>=2025.8
+# Core dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
 
+# Database
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.23
+
+# Data processing
+pandas==2.1.4
+polars==0.20.2
+numpy==1.24.4
+
+# Environment and utilities
+python-dotenv==1.0.0
+python-multipart==0.0.6
+
+# Optional: For development
+pytest==7.4.3
+black==23.11.0

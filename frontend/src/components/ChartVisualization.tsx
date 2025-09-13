@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   LineChart,
   Line,
@@ -18,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
 import { TrendingUp, TrendingDown, Minus, BarChart3, Target, Activity } from 'lucide-react';
-import { AnalyticsData } from '../types/data';
+import type { AnalyticsData } from '../types/data';
 
 interface ChartVisualizationProps {
   data: AnalyticsData[];
@@ -49,9 +48,6 @@ export function ChartVisualization({ data }: ChartVisualizationProps) {
     return value.toString();
   };
 
-  const formatPercentage = (value: number) => {
-    return (value * 100).toFixed(2) + '%';
-  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -60,6 +56,20 @@ export function ChartVisualization({ data }: ChartVisualizationProps) {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
+  };
+
+  const formatDateFromYYYYMMDD = (dateStr: string) => {
+    if (!dateStr || dateStr === '0') return new Date();
+    
+    // Parse YYYYMMDD format
+    if (dateStr.length === 8) {
+      const year = dateStr.substring(0, 4);
+      const month = dateStr.substring(4, 6);
+      const day = dateStr.substring(6, 8);
+      return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    }
+    
+    return new Date(dateStr); // fallback
   };
 
   // Calculate benchmark/indexed values (base 100)
@@ -79,29 +89,32 @@ export function ChartVisualization({ data }: ChartVisualizationProps) {
 
   const benchmarkData = calculateBenchmarkData();
 
-  const chartData = data.map((row, index) => ({
-    date: new Date(row.ProcessingDateKey).toLocaleDateString('en-US', { 
-      year: '2-digit', 
-      month: 'short' 
-    }),
-    fullDate: new Date(row.ProcessingDateKey).toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long' 
-    }),
-    commitmentAmt: row.CommitmentAmt,
-    outstandingAmt: row.OutstandingAmt,
-    deals: row.Deals,
-    caDiff: row.ca_diff ? row.ca_diff * 100 : null,
-    oaDiff: row.oa_diff ? row.oa_diff * 100 : null,
-    dealsDiff: row.deals_diff ? row.deals_diff * 100 : null,
-    caModelDiff: row.ca_model_diff ? row.ca_model_diff * 100 : null,
-    oaModelDiff: row.oa_model_diff ? row.oa_model_diff * 100 : null,
-    dealsModelDiff: row.deals_model_diff ? row.deals_model_diff * 100 : null,
-    // Add benchmark indices
-    commitmentIndex: benchmarkData[index]?.commitmentIndex || 100,
-    outstandingIndex: benchmarkData[index]?.outstandingIndex || 100,
-    dealsIndex: benchmarkData[index]?.dealsIndex || 100,
-  }));
+  const chartData = data.map((row, index) => {
+    const parsedDate = formatDateFromYYYYMMDD(row.ProcessingDateKey);
+    return {
+      date: parsedDate.toLocaleDateString('en-US', { 
+        year: '2-digit', 
+        month: 'short' 
+      }),
+      fullDate: parsedDate.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long' 
+      }),
+      commitmentAmt: row.CommitmentAmt,
+      outstandingAmt: row.OutstandingAmt,
+      deals: row.Deals,
+      caDiff: row.ca_diff ? row.ca_diff * 100 : null,
+      oaDiff: row.oa_diff ? row.oa_diff * 100 : null,
+      dealsDiff: row.deals_diff ? row.deals_diff * 100 : null,
+      caModelDiff: row.ca_model_diff ? row.ca_model_diff * 100 : null,
+      oaModelDiff: row.oa_model_diff ? row.oa_model_diff * 100 : null,
+      dealsModelDiff: row.deals_model_diff ? row.deals_model_diff * 100 : null,
+      // Add benchmark indices
+      commitmentIndex: benchmarkData[index]?.commitmentIndex || 100,
+      outstandingIndex: benchmarkData[index]?.outstandingIndex || 100,
+      dealsIndex: benchmarkData[index]?.dealsIndex || 100,
+    };
+  });
 
   const getMetricSummary = (dataKey: string, label: string) => {
     const values = chartData.map(d => d[dataKey as keyof typeof d]).filter(v => v !== null) as number[];

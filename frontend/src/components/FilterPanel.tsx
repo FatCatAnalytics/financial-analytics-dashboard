@@ -1,12 +1,10 @@
-import React from 'react';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-// import { Separator } from './ui/separator';
 import { X, Filter } from 'lucide-react';
-import { FilterOptions, SelectedFilters, CustomCommitmentRange } from '../types/data';
+import type { FilterOptions, SelectedFilters, CustomCommitmentRange } from '../types/data';
 import { CustomCommitmentRangeBuilder } from './CustomCommitmentRangeBuilder';
 
 interface FilterPanelProps {
@@ -31,16 +29,19 @@ export function FilterPanel({
   disabled = false
 }: FilterPanelProps) {
   const handleSelectChange = (filterType: keyof SelectedFilters, value: string) => {
-    const current = selectedFilters[filterType];
-    if (filterType === 'customCommitmentRanges') return; // Skip for custom ranges
-    const currentArray = current as string[];
-    if (!currentArray.includes(value)) {
-      onFilterChange(filterType, [...currentArray, value]);
+    // Skip customCommitmentRanges as they are handled differently
+    if (filterType === 'customCommitmentRanges') return;
+    
+    const current = selectedFilters[filterType] as string[];
+    if (!current.includes(value)) {
+      onFilterChange(filterType, [...current, value]);
     }
   };
 
   const removeFilter = (filterType: keyof SelectedFilters, value: string) => {
-    if (filterType === 'customCommitmentRanges') return; // Skip for custom ranges
+    // Skip customCommitmentRanges as they are handled differently
+    if (filterType === 'customCommitmentRanges') return;
+    
     const current = selectedFilters[filterType] as string[];
     onFilterChange(filterType, current.filter(v => v !== value));
   };
@@ -83,47 +84,52 @@ export function FilterPanel({
             Standard Filters
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Object.entries(filterOptions).map(([filterType, options]) => (
-            <div key={filterType} className="space-y-2">
-              <Label htmlFor={filterType}>
-                {filterLabels[filterType as keyof FilterOptions]}
-              </Label>
-              <Select onValueChange={(value) => handleSelectChange(filterType as keyof SelectedFilters, value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder={`Select ${filterLabels[filterType as keyof FilterOptions]}`} />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.map((option: string) => (
-                    <SelectItem 
-                      key={option} 
-                      value={option}
-                      disabled={(selectedFilters[filterType as keyof SelectedFilters] as string[]).includes(option)}
-                    >
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              {(selectedFilters[filterType as keyof SelectedFilters] as string[]).length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {(selectedFilters[filterType as keyof SelectedFilters] as string[]).map((value) => (
-                    <Badge key={value} variant="secondary" className="text-sm">
-                      {value}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-4 w-4 p-0 ml-1"
-                        onClick={() => removeFilter(filterType as keyof SelectedFilters, value)}
+          {Object.entries(filterOptions).map(([filterType, options]) => {
+            const filterKey = filterType as keyof FilterOptions;
+            const selectedValues = selectedFilters[filterKey] as string[];
+            
+            return (
+              <div key={filterType} className="space-y-2">
+                <Label htmlFor={filterType}>
+                  {filterLabels[filterKey]}
+                </Label>
+                <Select onValueChange={(value: string) => handleSelectChange(filterKey, value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={`Select ${filterLabels[filterKey]}`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {options.map((option: string) => (
+                      <SelectItem 
+                        key={option} 
+                        value={option}
+                        disabled={selectedValues.includes(option)}
                       >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                {selectedValues.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {selectedValues.map((value: string) => (
+                      <Badge key={value} variant="secondary" className="text-sm">
+                        {value}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-4 w-4 p-0 ml-1"
+                          onClick={() => removeFilter(filterKey, value)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
           </div>
         </div>
 
