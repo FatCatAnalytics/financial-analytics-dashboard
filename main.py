@@ -156,7 +156,7 @@ def test_db_connection() -> Dict[str, Any]:
             version = cursor.fetchone()[0]
 
             # Get the max processing date
-            cursor.execute('SELECT MAX("ProcessingDateKey") FROM cla_uat.mv_t_cla_input_full_upd')  # Replace with actual table name
+            cursor.execute('SELECT MAX(processingdatekey) FROM analytics_data')
             max_date = cursor.fetchone()[0]
 
         conn.close()
@@ -235,8 +235,8 @@ def get_max_processing_date() -> Optional[str]:
             return None
 
         with conn.cursor() as cursor:
-            # Replace 'your_table' with the actual table name containing ProcessingDateKey
-            cursor.execute('SELECT MAX("ProcessingDateKey") FROM cla_uat.mv_t_cla_input_full_upd')
+            # Get the maximum ProcessingDateKey from analytics_data table
+            cursor.execute('SELECT MAX(processingdatekey) FROM analytics_data')
             max_date = cursor.fetchone()[0]
 
         conn.close()
@@ -257,14 +257,14 @@ def get_available_line_of_business_ids(use_polars: bool = True) -> List[Dict[str
         # Query to get LineofBusinessId with potential business names/descriptions
         # You may need to join with another table to get business names if available
         query = """
-        SELECT DISTINCT "LineofBusinessId",
+        SELECT DISTINCT lineofbusinessid,
                COUNT(*) as record_count
-        FROM cla_uat.mv_t_cla_input_full_upd 
-        WHERE "LineofBusinessId" IS NOT NULL 
-        AND "LineofBusinessId" != 'NULL'
-        AND "LineofBusinessId" != ''
-        GROUP BY "LineofBusinessId"
-        ORDER BY "LineofBusinessId"
+        FROM analytics_data 
+        WHERE lineofbusinessid IS NOT NULL 
+        AND lineofbusinessid != 'NULL'
+        AND lineofbusinessid != ''
+        GROUP BY lineofbusinessid
+        ORDER BY lineofbusinessid
         """
 
         print("Fetching available Line of Business IDs...")
@@ -275,7 +275,7 @@ def get_available_line_of_business_ids(use_polars: bool = True) -> List[Dict[str
                 return []
             lob_options = []
             for row in df.to_dicts():
-                lob_id = row['LineofBusinessId']
+                lob_id = row['lineofbusinessid']
                 count = row['record_count']
                 # Add SBA indicator for reference
                 sba_indicator = " (SBA)" if lob_id == '12' else " (Non-SBA)"
@@ -324,12 +324,12 @@ def get_available_commitment_size_groups(use_polars: bool = True) -> List[str]:
             return []
 
         query = """
-        SELECT DISTINCT "CommitmentSizeGroup" 
-        FROM cla_uat.mv_t_cla_input_full_upd 
-        WHERE "CommitmentSizeGroup" IS NOT NULL 
-        AND "CommitmentSizeGroup" != 'NULL'
-        AND "CommitmentSizeGroup" != ''
-        ORDER BY "CommitmentSizeGroup"
+        SELECT DISTINCT commitmentsizegroup 
+        FROM analytics_data 
+        WHERE commitmentsizegroup IS NOT NULL 
+        AND commitmentsizegroup != 'NULL'
+        AND commitmentsizegroup != ''
+        ORDER BY commitmentsizegroup
         """
 
         print("Fetching available Commitment Size Groups...")
@@ -338,7 +338,7 @@ def get_available_commitment_size_groups(use_polars: bool = True) -> List[str]:
             df = read_sql_polars(query)
             if df is None:
                 return []
-            size_groups = df['CommitmentSizeGroup'].to_list()  # type: ignore[index]
+            size_groups = df['commitmentsizegroup'].to_list()  # type: ignore[index]
         else:
             # Get a database connection
             conn = get_db_connection()
@@ -369,12 +369,12 @@ def get_available_risk_group_descriptions(use_polars: bool = True) -> List[str]:
             return []
 
         query = """
-        SELECT DISTINCT "RiskGroupDesc" 
-        FROM cla_uat.mv_t_cla_input_full_upd 
-        WHERE "RiskGroupDesc" IS NOT NULL 
-        AND "RiskGroupDesc" != 'NULL'
-        AND "RiskGroupDesc" != ''
-        ORDER BY "RiskGroupDesc"
+        SELECT DISTINCT riskgroupdesc 
+        FROM analytics_data 
+        WHERE riskgroupdesc IS NOT NULL 
+        AND riskgroupdesc != 'NULL'
+        AND riskgroupdesc != ''
+        ORDER BY riskgroupdesc
         """
 
         print("Fetching available Risk Group Descriptions...")
@@ -383,7 +383,7 @@ def get_available_risk_group_descriptions(use_polars: bool = True) -> List[str]:
             df = read_sql_polars(query)
             if df is None:
                 return []
-            risk_groups = df['RiskGroupDesc'].to_list()  # type: ignore[index]
+            risk_groups = df['riskgroupdesc'].to_list()  # type: ignore[index]
         else:
             # Get a database connection
             conn = get_db_connection()
@@ -438,12 +438,12 @@ def get_available_regions(use_polars: bool = True) -> List[str]:
             return []
 
         query = """
-        SELECT DISTINCT "Region" 
-        FROM cla_uat.mv_t_cla_input_full_upd 
-        WHERE "Region" IS NOT NULL 
-        AND "Region" != 'NULL'
-        AND "Region" != ''
-        ORDER BY "Region"
+        SELECT DISTINCT region 
+        FROM analytics_data 
+        WHERE region IS NOT NULL 
+        AND region != 'NULL'
+        AND region != ''
+        ORDER BY region
         """
 
         print("Fetching available regions...")
@@ -452,7 +452,7 @@ def get_available_regions(use_polars: bool = True) -> List[str]:
             df = read_sql_polars(query)
             if df is None:
                 return []
-            regions = df['Region'].to_list()  # type: ignore[index]
+            regions = df['region'].to_list()  # type: ignore[index]
         else:
             # Get a database connection
             conn = get_db_connection()
@@ -511,22 +511,23 @@ def get_data_optimized(
 
     # Select specific columns if provided, otherwise use '*'
     if selected_columns:
-        columns_str = ", ".join([f'"{col}"' for col in selected_columns])
+        # Convert to lowercase for PostgreSQL compatibility
+        columns_str = ", ".join([col.lower() for col in selected_columns])
     else:
         columns_str = "*"
 
-    # Build WHERE conditions
+    # Build WHERE conditions using lowercase column names
     where_conditions = [
-        f"\"Region\" = '{region}'"
+        f"region = '{region}'"
     ]
 
     # Add SBA filter - this is the primary classification filter
     if sba_filter == 'SBA':
-        where_conditions.append("\"LineofBusinessId\" = '12'")
-        print("Applying SBA classification filter: LineofBusinessId = '12'")
+        where_conditions.append("lineofbusinessid = '12'")
+        print("Applying SBA classification filter: lineofbusinessid = '12'")
     elif sba_filter == 'Non-SBA':
-        where_conditions.append("\"LineofBusinessId\" != '12'")
-        print("Applying Non-SBA classification filter: LineofBusinessId != '12'")
+        where_conditions.append("lineofbusinessid != '12'")
+        print("Applying Non-SBA classification filter: lineofbusinessid != '12'")
     else:
         print("No SBA classification filter applied (All SBA classifications)")
 
@@ -534,10 +535,10 @@ def get_data_optimized(
     if line_of_business_ids is not None:
         if isinstance(line_of_business_ids, list):
             lob_list = [f"'{lob}'" for lob in line_of_business_ids]
-            where_conditions.append(f"\"LineofBusinessId\" IN ({', '.join(lob_list)})")
+            where_conditions.append(f"lineofbusinessid IN ({', '.join(lob_list)})")
             print("Applying specific Line of Business ID filter:", ", ".join(line_of_business_ids))
         else:
-            where_conditions.append(f"\"LineofBusinessId\" = '{line_of_business_ids}'")
+            where_conditions.append(f"lineofbusinessid = '{line_of_business_ids}'")
             print("Applying specific Line of Business ID filter:", line_of_business_ids)
     else:
         print("No specific Line of Business ID filter applied")
@@ -546,31 +547,31 @@ def get_data_optimized(
     if commitment_size_groups is not None:
         if isinstance(commitment_size_groups, list):
             csg_list = [f"'{csg}'" for csg in commitment_size_groups]
-            where_conditions.append(f"\"CommitmentSizeGroup\" IN ({', '.join(csg_list)})")
+            where_conditions.append(f"commitmentsizegroup IN ({', '.join(csg_list)})")
             print("Applying Commitment Size Group filter:", ", ".join(commitment_size_groups))
         else:
-            where_conditions.append(f"\"CommitmentSizeGroup\" = '{commitment_size_groups}'")
+            where_conditions.append(f"commitmentsizegroup = '{commitment_size_groups}'")
             print("Applying Commitment Size Group filter:", commitment_size_groups)
 
     # Add risk group description filter
     if risk_group_descriptions is not None:
         if isinstance(risk_group_descriptions, list):
             rgd_list = [f"'{rgd}'" for rgd in risk_group_descriptions]
-            where_conditions.append(f"\"RiskGroupDesc\" IN ({', '.join(rgd_list)})")
+            where_conditions.append(f"riskgroupdesc IN ({', '.join(rgd_list)})")
             print("Applying Risk Group Description filter:", ", ".join(risk_group_descriptions))
         else:
-            where_conditions.append(f"\"RiskGroupDesc\" = '{risk_group_descriptions}'")
+            where_conditions.append(f"riskgroupdesc = '{risk_group_descriptions}'")
             print("Applying Risk Group Description filter:", risk_group_descriptions)
 
     # Add maturity filter to exclude matured loans with low outstanding amounts
     where_conditions.append(
-        "NOT (\"CurrentMaturityDateKey\" < \"ProcessingDateKey\" AND NULLIF(\"OutstandingAmt\", 'NULL') :: float8 < 1000)"
+        "NOT (currentmaturitydatekey < processingdatekey AND NULLIF(outstandingamt::text, 'NULL')::float8 < 1000)"
     )
 
     # Build the complete query
     query = f"""
     SELECT {columns_str}
-    FROM cla_uat.mv_t_cla_input_full_upd
+    FROM analytics_data
     WHERE {' AND '.join(where_conditions)}
     """
 
