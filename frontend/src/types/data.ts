@@ -1,4 +1,5 @@
 export interface FilterOptions {
+  sbaClassification: string[];
   lineOfBusiness: string[];
   commitmentSizeGroup: string[];
   riskGroup: string[];
@@ -32,6 +33,7 @@ export interface CustomCommitmentRange {
 }
 
 export interface SelectedFilters {
+  sbaClassification: string[];
   lineOfBusiness: string[];
   commitmentSizeGroup: string[];
   customCommitmentRanges: CustomCommitmentRange[];

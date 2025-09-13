@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-// import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Plus, X, DollarSign } from 'lucide-react';
@@ -160,7 +160,7 @@ export function CustomCommitmentRangeBuilder({
 
       {customRanges.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          No custom ranges defined. Click &quot;Add Range&quot; to create one.
+          No custom ranges defined. Click "Add Range" to create one.
         </p>
       )}
     </div>

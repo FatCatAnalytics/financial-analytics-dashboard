@@ -54,6 +54,7 @@ def get_db_connection():
 
 # Pydantic models
 class FilterRequest(BaseModel):
+    sbaClassification: Optional[List[str]] = []
     lineOfBusiness: Optional[List[str]] = []
     commitmentSizeGroup: Optional[List[str]] = []
     customCommitmentRanges: Optional[List[Dict[str, Any]]] = []
@@ -191,6 +192,9 @@ def get_filter_options():
         }
         
         filter_options = {}
+        
+        # Add SBA classification options (hardcoded as they're based on logic)
+        filter_options["sbaClassification"] = ["SBA", "Non-SBA"]
         
         # Execute queries and build filter options
         for filter_name, query in filter_queries.items():
@@ -413,6 +417,17 @@ def execute_capped_analysis(request: QueryRequest):
         # Build WHERE conditions based on filters
         where_conditions = []
         params = []
+        
+        # Handle SBA classification filter (LineofBusinessId = '12' for SBA, != '12' for Non-SBA)
+        if request.filters.sbaClassification:
+            sba_conditions = []
+            for classification in request.filters.sbaClassification:
+                if classification.lower() == 'sba':
+                    sba_conditions.append("lineofbusinessid = '12'")
+                elif classification.lower() == 'non-sba':
+                    sba_conditions.append("lineofbusinessid != '12'")
+            if sba_conditions:
+                where_conditions.append(f"({' OR '.join(sba_conditions)})")
         
         if request.filters.lineOfBusiness:
             lob_ids = [lob.split(' - ')[0] if ' - ' in lob else lob for lob in request.filters.lineOfBusiness]

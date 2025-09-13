@@ -74,13 +74,6 @@ export function ConnectionCard({
   error,
   onRetry 
 }: ConnectionStatusProps & { onRetry?: () => void }) {
-  const getStatusText = () => {
-    if (isConnecting) return `Connecting to ${connectionType}...`;
-    if (error) return `Connection error`;
-    if (isConnected) return `${connectionType === 'database' ? 'Database' : 'API'} connected`;
-    return `${connectionType === 'database' ? 'Database' : 'API'} disconnected`;
-  };
-
   return (
     <Card className={`border-l-4 ${
       error ? 'border-l-destructive' : 

@@ -46,7 +46,8 @@ export function FilterPanel({
     onFilterChange(filterType, current.filter(v => v !== value));
   };
 
-  const filterLabels = {
+  const filterLabels: Record<keyof FilterOptions, string> = {
+    sbaClassification: 'SBA Classification',
     lineOfBusiness: 'Line of Business',
     commitmentSizeGroup: 'Commitment Size Group',
     riskGroup: 'Risk Group',

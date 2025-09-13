@@ -16,36 +16,25 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 
 # Virtual environments
-.env
-.venv
-env/
+.venv/
 venv/
 ENV/
-env.bak/
-venv.bak/
+env/
 
-# Database
-*.db
-*.sqlite3
-
-# Logs
-*.log
-logs/
-
-# Temporary files
-*.tmp
-*.temp
-capped_analysis_*.csv
-dashboard_analysis_*.csv
-data_page_analysis_*.csv
-composites_analysis_*.csv
-filters_analysis_*.csv
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # IDE
 .vscode/
@@ -62,22 +51,24 @@ filters_analysis_*.csv
 ehthumbs.db
 Thumbs.db
 
-# Frontend
-frontend/node_modules/
-frontend/.next/
-frontend/out/
-frontend/dist/
-frontend/.env.local
-frontend/.env.development.local
-frontend/.env.test.local
-frontend/.env.production.local
-
-# Dependencies
+# Node.js (for frontend)
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Offline dependencies (too large for git)
-offline-deps/
-*.tar.gz
+# Build outputs
+frontend/build/
+frontend/dist/
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+
+# Temporary files
+*.tmp
+*.temp

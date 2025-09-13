@@ -2,7 +2,7 @@
  * API service for connecting to the backend
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -20,6 +20,7 @@ export interface ConnectionStatus {
 }
 
 export interface FilterOptions {
+  sbaClassification: string[];
   lineOfBusiness: string[];
   commitmentSizeGroup: string[];
   riskGroup: string[];
@@ -29,6 +30,7 @@ export interface FilterOptions {
 }
 
 export interface QueryFilters {
+  sbaClassification: string[];
   lineOfBusiness: string[];
   commitmentSizeGroup: string[];
   customCommitmentRanges: Array<{

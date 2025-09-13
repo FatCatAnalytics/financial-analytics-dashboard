@@ -9,11 +9,12 @@ import { ChartVisualization } from './components/ChartVisualization';
 import { ConnectionStatus, ConnectionCard } from './components/ConnectionStatus';
 import { LoadingOverlay, FilterLoadingSkeleton, DataLoadingSkeleton, ChartLoadingSkeleton } from './components/LoadingOverlay';
 import { StatusDashboard } from './components/StatusDashboard';
-import { apiService, type AnalyticsRecord } from './services/api';
+import { apiService } from './services/api';
 import type { SelectedFilters, AnalyticsData, CustomCommitmentRange } from './types/data';
 
 export default function App() {
   const [selectedFilters, setSelectedFilters] = useState<SelectedFilters>({
+    sbaClassification: [],
     lineOfBusiness: [],
     commitmentSizeGroup: [],
     customCommitmentRanges: [],
@@ -60,6 +61,7 @@ export default function App() {
 
   const handleClearFilters = () => {
     setSelectedFilters({
+      sbaClassification: [],
       lineOfBusiness: [],
       commitmentSizeGroup: [],
       customCommitmentRanges: [],
