@@ -76,15 +76,38 @@ export function ChartVisualization({ data }: ChartVisualizationProps) {
   const calculateBenchmarkData = () => {
     if (data.length === 0) return [];
     
+    // Get base values from first observation
     const baseCommitment = data[0].CommitmentAmt;
     const baseOutstanding = data[0].OutstandingAmt;
     const baseDeals = data[0].Deals;
     
-    return data.map(row => ({
-      commitmentIndex: baseCommitment ? (row.CommitmentAmt / baseCommitment) * 100 : 100,
-      outstandingIndex: baseOutstanding ? (row.OutstandingAmt / baseOutstanding) * 100 : 100,
-      dealsIndex: baseDeals ? (row.Deals / baseDeals) * 100 : 100,
-    }));
+    return data.map((row, index) => {
+      // Ensure first observation is always 100
+      if (index === 0) {
+        return {
+          commitmentIndex: 100,
+          outstandingIndex: 100,
+          dealsIndex: 100,
+        };
+      }
+      
+      // Calculate relative performance for subsequent observations
+      const commitmentIndex = baseCommitment && baseCommitment > 0 
+        ? (row.CommitmentAmt / baseCommitment) * 100 
+        : 100;
+      const outstandingIndex = baseOutstanding && baseOutstanding > 0 
+        ? (row.OutstandingAmt / baseOutstanding) * 100 
+        : 100;
+      const dealsIndex = baseDeals && baseDeals > 0 
+        ? (row.Deals / baseDeals) * 100 
+        : 100;
+      
+      return {
+        commitmentIndex,
+        outstandingIndex,
+        dealsIndex,
+      };
+    });
   };
 
   const benchmarkData = calculateBenchmarkData();
