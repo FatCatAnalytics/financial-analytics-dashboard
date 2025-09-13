@@ -1,0 +1,110 @@
+{
+  "templates": {
+    "template1": {
+      "name": "Non-SBA Rocky Mountain",
+      "description": "Non-SBA classification with Rocky Mountain region",
+      "filters": {
+        "sba_classification": "Non-SBA",
+        "region": "Rocky Mountain",
+        "line_of_business_ids": null,
+        "commitment_size_groups": null,
+        "risk_group_descriptions": null
+      }
+    },
+    "template2": {
+      "name": "Non-SBA High Quality",
+      "description": "Non-SBA all regions with High Quality risk group",
+      "filters": {
+        "sba_classification": "Non-SBA",
+        "region": null,
+        "line_of_business_ids": null,
+        "commitment_size_groups": null,
+        "risk_group_descriptions": ["High Quality"]
+      }
+    },
+    "template3": {
+      "name": "SBA All Regions",
+      "description": "SBA classification across all regions",
+      "filters": {
+        "sba_classification": "SBA",
+        "region": null,
+        "line_of_business_ids": null,
+        "commitment_size_groups": null,
+        "risk_group_descriptions": null
+      }
+    },
+    "template4": {
+      "name": "Large Commitments High Risk",
+      "description": "Large commitment sizes with high risk groups",
+      "filters": {
+        "sba_classification": null,
+        "region": null,
+        "line_of_business_ids": null,
+        "commitment_size_groups": ["$5MM - $10MM", "$10MM - $25MM", "> $25MM"],
+        "risk_group_descriptions": ["Substandard", "Doubtful", "Loss"]
+      }
+    },
+    "template5": {
+      "name": "Southwest Non-SBA Medium Size",
+      "description": "Southwest region Non-SBA with medium commitment sizes",
+      "filters": {
+        "sba_classification": "Non-SBA",
+        "region": "Southwest",
+        "line_of_business_ids": null,
+        "commitment_size_groups": ["$1MM - $5MM", "$5MM - $10MM"],
+        "risk_group_descriptions": null
+      }
+    },
+    "template6": {
+      "name": "Northeast High Quality SBA",
+      "description": "Northeast region SBA with High Quality risk",
+      "filters": {
+        "sba_classification": "SBA",
+        "region": "Northeast",
+        "line_of_business_ids": null,
+        "commitment_size_groups": null,
+        "risk_group_descriptions": ["High Quality"]
+      }
+    },
+    "template7": {
+      "name": "Small Commitments All Regions",
+      "description": "Small commitment sizes across all regions",
+      "filters": {
+        "sba_classification": null,
+        "region": null,
+        "line_of_business_ids": null,
+        "commitment_size_groups": ["< $250K", "$250K - $1MM"],
+        "risk_group_descriptions": null
+      }
+    },
+    "template8": {
+      "name": "Non-SBA Specific LOB",
+      "description": "Non-SBA with specific Line of Business IDs",
+      "filters": {
+        "sba_classification": "Non-SBA",
+        "region": null,
+        "line_of_business_ids": ["1", "2", "3"],
+        "commitment_size_groups": null,
+        "risk_group_descriptions": null
+      }
+    }
+  },
+  "future_database_config": {
+    "target_table": "pipeline_results",
+    "schema": {
+      "template_name": "VARCHAR(255)",
+      "run_timestamp": "TIMESTAMP",
+      "filter_params": "JSONB",
+      "processingdatekey": "BIGINT",
+      "commitmentamt": "DECIMAL(20,2)",
+      "outstandingamt": "DECIMAL(20,2)",
+      "deals": "INTEGER",
+      "ca_diff": "DECIMAL(10,6)",
+      "oa_diff": "DECIMAL(10,6)",
+      "deals_diff": "DECIMAL(10,6)",
+      "ca_model_diff": "DECIMAL(10,6)",
+      "oa_model_diff": "DECIMAL(10,6)",
+      "deals_model_diff": "DECIMAL(10,6)"
+    }
+  }
+}
