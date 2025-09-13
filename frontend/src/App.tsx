@@ -208,7 +208,7 @@ export default function App() {
 
   // Get latest period from data (ProcessingDateKey is YYYYMMDD format)
   const getLatestPeriod = () => {
-    if (queryResults.length === 0) return 'Aug 2024';
+    if (queryResults.length === 0) return null;
     const latest = queryResults[queryResults.length - 1];
     const dateStr = latest.ProcessingDateKey.toString();
     
@@ -221,13 +221,13 @@ export default function App() {
       return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     }
     
-    return 'Aug 2024'; // fallback
+    return null; // No valid date found
   };
 
-  // Calculate total commitment from latest data
+  // Calculate total commitment from all data
   const getTotalCommitment = () => {
-    if (queryResults.length === 0) return 21284739215; // Default value
-    return queryResults[queryResults.length - 1]?.CommitmentAmt || 0;
+    if (queryResults.length === 0) return 0; // No data available
+    return queryResults.reduce((total, record) => total + (record.CommitmentAmt || 0), 0);
   };
 
   return (
@@ -289,9 +289,8 @@ export default function App() {
           lastConnectionTime={lastConnectionTime || undefined}
           lastDataUpdate={lastDataUpdate || undefined}
           recordCount={queryResults.length}
-          latestPeriod={getLatestPeriod()}
+          latestPeriod={getLatestPeriod() || undefined}
           totalCommitment={getTotalCommitment()}
-          onRefresh={handleRetryConnection}
         />
 
         {/* Connection Status Card (shown when there are issues) */}
@@ -406,7 +405,7 @@ export default function App() {
                       <span className="text-sm font-medium">Live Data</span>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      {queryResults.length} records • Latest: {getLatestPeriod()}
+                      {queryResults.length} records • Latest: {getLatestPeriod() || 'No data'}
                     </div>
                   </div>
                   <Badge variant="secondary" className="bg-white/70">

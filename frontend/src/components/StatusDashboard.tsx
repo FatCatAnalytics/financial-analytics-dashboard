@@ -1,4 +1,3 @@
-import React from 'react';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { 
@@ -34,8 +33,7 @@ export function StatusDashboard({
   lastDataUpdate,
   recordCount = 0,
   latestPeriod,
-  totalCommitment,
-  onRefresh
+  totalCommitment
 }: StatusDashboardProps) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -47,15 +45,27 @@ export function StatusDashboard({
   };
 
   const getDataFreshnessStatus = () => {
-    if (!lastDataUpdate) return { label: 'No data', color: 'text-muted-foreground', variant: 'secondary' as const };
+    if (!latestPeriod) return { label: 'No data', color: 'text-muted-foreground', variant: 'secondary' as const };
+    
+    // Parse the latest period (format: "Aug 2024" or YYYYMMDD string)
+    let latestDate: Date;
+    
+    if (latestPeriod.includes(' ')) {
+      // Format like "Aug 2024"
+      latestDate = new Date(latestPeriod);
+    } else {
+      // YYYYMMDD format
+      const year = parseInt(latestPeriod.substring(0, 4));
+      const month = parseInt(latestPeriod.substring(4, 6)) - 1; // Month is 0-indexed
+      const day = parseInt(latestPeriod.substring(6, 8));
+      latestDate = new Date(year, month, day);
+    }
     
     const now = new Date();
-    const hoursSinceUpdate = (now.getTime() - lastDataUpdate.getTime()) / (1000 * 60 * 60);
+    const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
     
-    if (hoursSinceUpdate < 1) {
+    if (latestDate >= oneMonthAgo) {
       return { label: 'Fresh', color: 'text-green-600', variant: 'default' as const };
-    } else if (hoursSinceUpdate < 24) {
-      return { label: 'Recent', color: 'text-blue-600', variant: 'secondary' as const };
     } else {
       return { label: 'Stale', color: 'text-amber-600', variant: 'outline' as const };
     }
@@ -145,7 +155,7 @@ export function StatusDashboard({
               <div>
                 <p className="text-sm font-medium">Latest Period</p>
                 <p className="text-sm font-semibold text-purple-700">
-                  {latestPeriod || 'Aug 2024'}
+                  {latestPeriod || 'No data'}
                 </p>
               </div>
             </div>
@@ -168,7 +178,7 @@ export function StatusDashboard({
               <div>
                 <p className="text-sm font-medium">Portfolio Value</p>
                 <p className="text-sm font-semibold text-emerald-700">
-                  {totalCommitment ? formatCurrency(totalCommitment) : '$21.3B'}
+                  {totalCommitment && totalCommitment > 0 ? formatCurrency(totalCommitment) : 'No data'}
                 </p>
               </div>
             </div>

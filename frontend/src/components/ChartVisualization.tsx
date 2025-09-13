@@ -428,9 +428,8 @@ export function ChartVisualization({ data }: ChartVisualizationProps) {
                         tick={{ fontSize: 12, fill: colors.gray }}
                         axisLine={{ stroke: colors.light }}
                         tickLine={{ stroke: colors.light }}
-                        domain={[80, 'dataMax + 10']}
-                        ticks={[80, 90, 100, 110, 120, 130, 140, 150]}
-                        tickFormatter={(value) => value.toFixed(0)}
+                        domain={['dataMin - 5', 'dataMax + 5']}
+                        tickFormatter={(value) => Number(value).toFixed(2)}
                       />
                       <Tooltip content={<CustomTooltip />} />
                       <Legend 
@@ -506,9 +505,8 @@ export function ChartVisualization({ data }: ChartVisualizationProps) {
                         <YAxis 
                           tick={{ fontSize: 12, fill: colors.gray }}
                           axisLine={{ stroke: colors.light }}
-                          domain={[80, 'dataMax + 10']}
-                          ticks={[80, 90, 100, 110, 120, 130, 140, 150]}
-                          tickFormatter={(value) => value.toFixed(0)}
+                          domain={['dataMin - 5', 'dataMax + 5']}
+                          tickFormatter={(value) => Number(value).toFixed(2)}
                         />
                         <Tooltip content={<CustomTooltip />} />
                         <Legend iconType="circle" />
@@ -566,9 +564,8 @@ export function ChartVisualization({ data }: ChartVisualizationProps) {
                         <YAxis 
                           tick={{ fontSize: 12, fill: colors.gray }}
                           axisLine={{ stroke: colors.light }}
-                          domain={[80, 'dataMax + 10']}
-                          ticks={[80, 90, 100, 110, 120, 130, 140, 150]}
-                          tickFormatter={(value) => value.toFixed(0)}
+                          domain={['dataMin - 5', 'dataMax + 5']}
+                          tickFormatter={(value) => Number(value).toFixed(2)}
                         />
                         <Tooltip content={<CustomTooltip />} />
                         <ReferenceLine y={100} stroke={colors.gray} strokeDasharray="3 3" />
