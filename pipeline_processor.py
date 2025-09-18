@@ -157,6 +157,31 @@ class PipelineProcessor:
             else:
                 where_conditions.append(f"riskgroupdesc = '{rgd_list}'")
         
+        # Date filters (ProcessingDateKey only)
+        if filters.get("date_filters"):
+            from datetime import datetime
+            for date_filter in filters["date_filters"]:
+                operator = date_filter.get("operator")
+                
+                try:
+                    # Convert ISO date string to YYYYMMDD format
+                    start_date = datetime.fromisoformat(date_filter.get("startDate", "").replace('Z', '+00:00'))
+                    start_date_key = int(start_date.strftime('%Y%m%d'))
+                    
+                    if operator == "equals":
+                        where_conditions.append(f"processingdatekey = {start_date_key}")
+                    elif operator == "greaterThan":
+                        where_conditions.append(f"processingdatekey >= {start_date_key}")
+                    elif operator == "lessThan":
+                        where_conditions.append(f"processingdatekey <= {start_date_key}")
+                    elif operator == "between" and date_filter.get("endDate"):
+                        end_date = datetime.fromisoformat(date_filter.get("endDate", "").replace('Z', '+00:00'))
+                        end_date_key = int(end_date.strftime('%Y%m%d'))
+                        where_conditions.append(f"processingdatekey BETWEEN {start_date_key} AND {end_date_key}")
+                except (ValueError, TypeError) as e:
+                    print(f"Error parsing date filter: {e}")
+                    continue
+        
         # Build the final query
         query = """
         SELECT 

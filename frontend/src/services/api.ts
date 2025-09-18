@@ -43,6 +43,11 @@ export interface QueryFilters {
   bankId: string[];
   region: string[];
   naicsGrpName: string[];
+  dateFilters: Array<{
+    operator: 'equals' | 'greaterThan' | 'lessThan' | 'between';
+    startDate: string; // ISO date string
+    endDate?: string; // ISO date string, only for 'between' operator
+  }>;
 }
 
 export interface QueryRequest {

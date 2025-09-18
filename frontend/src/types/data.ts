@@ -1,3 +1,9 @@
+export interface DateFilter {
+  operator: 'equals' | 'greaterThan' | 'lessThan' | 'between';
+  startDate: Date;
+  endDate?: Date; // Only used for 'between' operator
+}
+
 export interface FilterOptions {
   sbaClassification: string[];
   lineOfBusiness: string[];
@@ -41,4 +47,5 @@ export interface SelectedFilters {
   bankId: string[];
   region: string[];
   naicsGrpName: string[];
+  dateFilters: DateFilter[];
 }

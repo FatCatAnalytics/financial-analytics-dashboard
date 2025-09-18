@@ -9,11 +9,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import psycopg2
-import pandas as pd
 import os
 from datetime import datetime
-import json
 from dotenv import load_dotenv
+
+# Import analysis functions at module level to avoid linting issues
+try:
+    import sys
+    sys.path.append('/Users/aetingu/Volume Composites')
+    from main import testCappedvsUncapped, setup_groups
+except ImportError:
+    testCappedvsUncapped = None
+    setup_groups = None
 
 # Load environment variables
 load_dotenv()
@@ -53,6 +60,11 @@ def get_db_connection():
         return None
 
 # Pydantic models
+class DateFilter(BaseModel):
+    operator: str  # 'equals', 'greaterThan', 'lessThan', 'between'
+    startDate: str  # ISO date string
+    endDate: Optional[str] = None  # ISO date string, only for 'between' operator
+
 class FilterRequest(BaseModel):
     sbaClassification: Optional[List[str]] = []
     lineOfBusiness: Optional[List[str]] = []
@@ -62,6 +74,7 @@ class FilterRequest(BaseModel):
     bankId: Optional[List[str]] = []
     region: Optional[List[str]] = []
     naicsGrpName: Optional[List[str]] = []
+    dateFilters: Optional[List[DateFilter]] = []
 
 class QueryRequest(BaseModel):
     filters: FilterRequest
@@ -89,7 +102,7 @@ def health_check():
             cursor.close()
             conn.close()
             db_status = "connected"
-        except:
+        except psycopg2.Error:
             db_status = "error"
     else:
         db_status = "disconnected"
@@ -218,7 +231,7 @@ def get_filter_options():
     except psycopg2.Error as e:
         if conn:
             conn.close()
-        raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}") from e
 
 @app.post("/api/query")
 def execute_query(request: QueryRequest):
@@ -275,6 +288,32 @@ def execute_query(request: QueryRequest):
             
             if range_conditions:
                 where_conditions.append(f"({' OR '.join(range_conditions)})")
+        
+        # Handle date filters (ProcessingDateKey only)
+        if request.filters.dateFilters:
+            for date_filter in request.filters.dateFilters:
+                try:
+                    # Convert ISO date string to YYYYMMDD format
+                    start_date = datetime.fromisoformat(date_filter.startDate.replace('Z', '+00:00'))
+                    start_date_key = int(start_date.strftime('%Y%m%d'))
+                    
+                    if date_filter.operator == "equals":
+                        where_conditions.append("ProcessingDateKey = %s")
+                        params.append(start_date_key)
+                    elif date_filter.operator == "greaterThan":
+                        where_conditions.append("ProcessingDateKey >= %s")
+                        params.append(start_date_key)
+                    elif date_filter.operator == "lessThan":
+                        where_conditions.append("ProcessingDateKey <= %s")
+                        params.append(start_date_key)
+                    elif date_filter.operator == "between" and date_filter.endDate:
+                        end_date = datetime.fromisoformat(date_filter.endDate.replace('Z', '+00:00'))
+                        end_date_key = int(end_date.strftime('%Y%m%d'))
+                        where_conditions.append("ProcessingDateKey BETWEEN %s AND %s")
+                        params.extend([start_date_key, end_date_key])
+                except (ValueError, TypeError) as e:
+                    print(f"Error parsing date filter: {e}")
+                    continue
         
         # Build the main query
         base_query = """
@@ -340,7 +379,7 @@ def execute_query(request: QueryRequest):
     except psycopg2.Error as e:
         if conn:
             conn.close()
-        raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}") from e
 
 @app.get("/api/analytics-data")
 def get_analytics_data(limit: Optional[int] = None):
@@ -385,7 +424,7 @@ def get_analytics_data(limit: Optional[int] = None):
     except psycopg2.Error as e:
         if conn:
             conn.close()
-        raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}") from e
 
 @app.post("/api/test-analysis")
 def test_analysis():
@@ -393,9 +432,8 @@ def test_analysis():
     try:
         import sys
         sys.path.append('/Users/aetingu/Volume Composites')
-        from main import testCappedvsUncapped
         return {"status": "success", "message": "Functions imported successfully"}
-    except Exception as e:
+    except (ImportError, AttributeError) as e:
         import traceback
         return {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
 
@@ -405,10 +443,11 @@ def execute_capped_analysis(request: QueryRequest):
     conn = None
     try:
         import pandas as pd
-        import sys
-        sys.path.append('/Users/aetingu/Volume Composites')
-        from main import testCappedvsUncapped, setup_groups
-        print(f"Successfully imported analysis functions")
+        
+        if testCappedvsUncapped is None or setup_groups is None:
+            raise HTTPException(status_code=500, detail="Analysis functions not available")
+            
+        print("Successfully imported analysis functions")
         
         conn = get_db_connection()
         if not conn:
@@ -454,6 +493,32 @@ def execute_capped_analysis(request: QueryRequest):
             placeholders = ','.join(['%s'] * len(request.filters.naicsGrpName))
             where_conditions.append(f'naicsgrpname IN ({placeholders})')
             params.extend(request.filters.naicsGrpName)
+        
+        # Handle date filters (ProcessingDateKey only)
+        if request.filters.dateFilters:
+            for date_filter in request.filters.dateFilters:
+                try:
+                    # Convert ISO date string to YYYYMMDD format
+                    start_date = datetime.fromisoformat(date_filter.startDate.replace('Z', '+00:00'))
+                    start_date_key = int(start_date.strftime('%Y%m%d'))
+                    
+                    if date_filter.operator == "equals":
+                        where_conditions.append("processingdatekey = %s")
+                        params.append(start_date_key)
+                    elif date_filter.operator == "greaterThan":
+                        where_conditions.append("processingdatekey >= %s")
+                        params.append(start_date_key)
+                    elif date_filter.operator == "lessThan":
+                        where_conditions.append("processingdatekey <= %s")
+                        params.append(start_date_key)
+                    elif date_filter.operator == "between" and date_filter.endDate:
+                        end_date = datetime.fromisoformat(date_filter.endDate.replace('Z', '+00:00'))
+                        end_date_key = int(end_date.strftime('%Y%m%d'))
+                        where_conditions.append("processingdatekey BETWEEN %s AND %s")
+                        params.extend([start_date_key, end_date_key])
+                except (ValueError, TypeError) as e:
+                    print(f"Error parsing date filter: {e}")
+                    continue
         
         # Build the query to get raw data for analysis
         base_query = """
@@ -572,13 +637,13 @@ def execute_capped_analysis(request: QueryRequest):
             "filters_applied": request.filters.model_dump()
         }
         
-    except Exception as e:
+    except (ImportError, ValueError, psycopg2.Error, AttributeError) as e:
         import traceback
         print(f"Error in capped analysis: {str(e)}")
         print(f"Full traceback: {traceback.format_exc()}")
         if conn:
             conn.close()
-        raise HTTPException(status_code=500, detail=f"Analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Analysis error: {str(e)}") from e
 
 @app.get("/api/summary-stats")
 def get_summary_stats():
@@ -655,7 +720,7 @@ def get_summary_stats():
     except psycopg2.Error as e:
         if conn:
             conn.close()
-        raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}") from e
 
 if __name__ == "__main__":
     import uvicorn

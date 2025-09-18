@@ -4,8 +4,9 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { X, Filter } from 'lucide-react';
-import type { FilterOptions, SelectedFilters, CustomCommitmentRange } from '../types/data';
+import type { FilterOptions, SelectedFilters, CustomCommitmentRange, DateFilter } from '../types/data';
 import { CustomCommitmentRangeBuilder } from './CustomCommitmentRangeBuilder';
+import { DateRangeFilter } from './DateRangeFilter';
 
 interface FilterPanelProps {
   filterOptions: FilterOptions;
@@ -13,6 +14,8 @@ interface FilterPanelProps {
   onFilterChange: (filterType: keyof SelectedFilters, values: string[]) => void;
   onCustomRangeAdd: (range: CustomCommitmentRange) => void;
   onCustomRangeRemove: (id: string) => void;
+  onDateFilterAdd: (filter: DateFilter) => void;
+  onDateFilterRemove: (index: number) => void;
   onClearFilters: () => void;
   onRunQuery: () => void;
   disabled?: boolean;
@@ -24,6 +27,8 @@ export function FilterPanel({
   onFilterChange,
   onCustomRangeAdd,
   onCustomRangeRemove,
+  onDateFilterAdd,
+  onDateFilterRemove,
   onClearFilters,
   onRunQuery,
   disabled = false
@@ -59,6 +64,9 @@ export function FilterPanel({
   const totalSelectedFilters = Object.entries(selectedFilters).reduce((acc, [key, value]) => {
     if (key === 'customCommitmentRanges') {
       return acc + (value as CustomCommitmentRange[]).length;
+    }
+    if (key === 'dateFilters') {
+      return acc + (value as DateFilter[]).length;
     }
     return acc + (value as string[]).length;
   }, 0);
@@ -143,6 +151,14 @@ export function FilterPanel({
             customRanges={selectedFilters.customCommitmentRanges}
             onAddRange={onCustomRangeAdd}
             onRemoveRange={onCustomRangeRemove}
+          />
+        </div>
+
+        <div className="bg-white/70 backdrop-blur-sm rounded-xl border border-slate-200/40 p-6">
+          <DateRangeFilter
+            dateFilters={selectedFilters.dateFilters}
+            onAddDateFilter={onDateFilterAdd}
+            onRemoveDateFilter={onDateFilterRemove}
           />
         </div>
 

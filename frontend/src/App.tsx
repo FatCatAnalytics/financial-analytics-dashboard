@@ -10,7 +10,7 @@ import { ConnectionStatus, ConnectionCard } from './components/ConnectionStatus'
 import { LoadingOverlay, FilterLoadingSkeleton, DataLoadingSkeleton, ChartLoadingSkeleton } from './components/LoadingOverlay';
 import { StatusDashboard } from './components/StatusDashboard';
 import { apiService } from './services/api';
-import type { SelectedFilters, AnalyticsData, CustomCommitmentRange } from './types/data';
+import type { SelectedFilters, AnalyticsData, CustomCommitmentRange, DateFilter } from './types/data';
 
 export default function App() {
   const [selectedFilters, setSelectedFilters] = useState<SelectedFilters>({
@@ -21,7 +21,8 @@ export default function App() {
     riskGroup: [],
     bankId: [],
     region: [],
-    naicsGrpName: []
+    naicsGrpName: [],
+    dateFilters: []
   });
 
   const [queryResults, setQueryResults] = useState<AnalyticsData[]>([]);
@@ -59,6 +60,20 @@ export default function App() {
     }));
   };
 
+  const handleDateFilterAdd = (filter: DateFilter) => {
+    setSelectedFilters(prev => ({
+      ...prev,
+      dateFilters: [...prev.dateFilters, filter]
+    }));
+  };
+
+  const handleDateFilterRemove = (index: number) => {
+    setSelectedFilters(prev => ({
+      ...prev,
+      dateFilters: prev.dateFilters.filter((_, i) => i !== index)
+    }));
+  };
+
   const handleClearFilters = () => {
     setSelectedFilters({
       sbaClassification: [],
@@ -68,7 +83,8 @@ export default function App() {
       riskGroup: [],
       bankId: [],
       region: [],
-      naicsGrpName: []
+      naicsGrpName: [],
+      dateFilters: []
     });
   };
 
@@ -157,10 +173,20 @@ export default function App() {
     setIsLoading(true);
     
     try {
+      // Convert date filters to API format
+      const apiDateFilters = selectedFilters.dateFilters.map(filter => ({
+        operator: filter.operator,
+        startDate: filter.startDate.toISOString(),
+        ...(filter.endDate ? { endDate: filter.endDate.toISOString() } : {})
+      }));
+
       // Use the API service to simulate query execution with progress updates
       const analyticsData = await apiService.simulateQueryExecution(
         {
-          filters: selectedFilters,
+          filters: {
+            ...selectedFilters,
+            dateFilters: apiDateFilters
+          },
           limit: 1000
         },
         (message: string) => {
@@ -346,6 +372,8 @@ export default function App() {
                   onFilterChange={handleFilterChange}
                   onCustomRangeAdd={handleCustomRangeAdd}
                   onCustomRangeRemove={handleCustomRangeRemove}
+                  onDateFilterAdd={handleDateFilterAdd}
+                  onDateFilterRemove={handleDateFilterRemove}
                   onClearFilters={handleClearFilters}
                   onRunQuery={handleRunQuery}
                   disabled={!isConnected}
