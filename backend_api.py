@@ -17,6 +17,16 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from functools import lru_cache
 import logging
+import pandas as pd
+import polars as pl
+
+# Import analysis functions from main.py
+try:
+    from main import setup_groups, testCappedvsUncapped
+except Exception as e:
+    setup_groups = None  # type: ignore
+    testCappedvsUncapped = None  # type: ignore
+    logging.warning(f"Analysis functions not available: {e}")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -604,15 +614,115 @@ async def cache_status():
         }
     return {"success": True, "cache_status": status}
 
-# Legacy analysis endpoint placeholder
+async def _run_capped_analysis(request: QueryRequest) -> Dict[str, Any]:
+    if setup_groups is None or testCappedvsUncapped is None:
+        raise HTTPException(status_code=500, detail="Analysis functions not available in main.py")
+
+    conn = await get_db_connection()
+    try:
+        # Build WHERE conditions
+        where_conditions, params = build_where_conditions(request.filters)
+        
+        # Minimal dataset for analysis
+        base_query = """
+        SELECT 
+            processingdatekey,
+            commitmentamt,
+            outstandingamt,
+            bankid
+        FROM analytics_data
+        """
+        if where_conditions:
+            base_query += f" WHERE {' AND '.join(where_conditions)}"
+        base_query += " ORDER BY processingdatekey, bankid"
+        if request.limit:
+            base_query += f" LIMIT ${len(params)+1}"
+            params.append(request.limit)
+        
+        rows = await conn.fetch(base_query, *params)
+    finally:
+        await release_db_connection(conn)
+    
+    # Convert to DataFrame with expected column names
+    if not rows:
+        return {
+            "success": False,
+            "error": "No data found for the selected filters",
+            "data": []
+        }
+    
+    df_data: List[Dict[str, Any]] = []
+    for r in rows:
+        df_data.append({
+            'ProcessingDateKey': int(r['processingdatekey']) if r['processingdatekey'] is not None else None,
+            'CommitmentAmt': float(r['commitmentamt']) if r['commitmentamt'] is not None else None,
+            'OutstandingAmt': float(r['outstandingamt']) if r['outstandingamt'] is not None else None,
+            'BankID': r['bankid']
+        })
+    
+    # Use Polars for processing
+    df_polars = pl.from_pandas(pd.DataFrame(df_data))
+    
+    # Run setup_groups to get capped differences components
+    ca_pivot, oa_pivot, deals_pivot = setup_groups(df_polars)
+    ca_perc_diff = ca_pivot["perc_diff"]
+    oa_perc_diff = oa_pivot["perc_diff"]
+    deals_perc_diff = deals_pivot["perc_diff"]
+    
+    # Run capped vs uncapped analysis
+    result_df = testCappedvsUncapped(
+        df_polars,
+        ca_perc_diff,
+        oa_perc_diff,
+        deals_perc_diff,
+        None
+    )
+    
+    # Convert result to JSON-serializable dicts
+    if hasattr(result_df, 'to_dicts'):
+        analysis_results = result_df.to_dicts()
+    else:
+        analysis_results = result_df.to_dict('records')  # pandas fallback
+    
+    formatted_results: List[Dict[str, Any]] = []
+    for rec in analysis_results:
+        out: Dict[str, Any] = {}
+        for k, v in rec.items():
+            if isinstance(v, float):
+                if not (v == v) or v == float('inf') or v == float('-inf'):
+                    v = None
+            out[k] = v
+        # Normalize date fields to strings
+        if 'ProcessingDateKey' in out and out['ProcessingDateKey'] is not None:
+            try:
+                out['ProcessingDateKey'] = str(int(out['ProcessingDateKey']))
+            except Exception:
+                out['ProcessingDateKey'] = str(out['ProcessingDateKey'])
+        if 'ProcessingDateKeyPrior' in out and out['ProcessingDateKeyPrior'] is not None:
+            try:
+                val = int(out['ProcessingDateKeyPrior'])
+                out['ProcessingDateKeyPrior'] = str(val) if val != 0 else '0'
+            except Exception:
+                out['ProcessingDateKeyPrior'] = str(out['ProcessingDateKeyPrior'])
+        formatted_results.append(out)
+    
+    return {
+        "success": True,
+        "data": formatted_results,
+        "totalRecords": len(formatted_results),
+        "analysis_type": "capped_vs_uncapped",
+        "filters_applied": request.filters.model_dump()
+    }
+
+# New optimized capped analysis endpoint
+@app.post("/api/analytics-capped")
+async def analytics_capped(request: QueryRequest):
+    return await _run_capped_analysis(request)
+
+# Backward-compatible legacy path
 @app.post("/api/execute-capped-analysis")
 async def execute_capped_analysis(request: QueryRequest):
-    """Placeholder for legacy analysis endpoint"""
-    return {
-        "success": False,
-        "error": "Legacy analysis endpoint disabled in optimized version",
-        "message": "Use the new /api/query endpoint for data retrieval"
-    }
+    return await _run_capped_analysis(request)
 
 if __name__ == "__main__":
     import uvicorn

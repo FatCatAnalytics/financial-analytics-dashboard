@@ -217,9 +217,12 @@ class ApiService {
   }
 
   // Execute capped vs uncapped analysis
-  // Deprecated on backend; keep method for compatibility (not used)
-  async executeCappedAnalysis(_queryRequest: QueryRequest): Promise<ApiResponse<any[]>> {
-    throw new Error('executeCappedAnalysis is deprecated. Use executeQuery instead.');
+  // New optimized capped analysis endpoint
+  async executeAnalyticsCapped(queryRequest: QueryRequest): Promise<ApiResponse<any[]>> {
+    return this.request('/api/analytics-capped', {
+      method: 'POST',
+      body: JSON.stringify(queryRequest),
+    });
   }
 
   // Execute query with progress updates and client-side aggregation to avoid duplicate backend work
@@ -239,57 +242,13 @@ class ApiService {
       await new Promise(resolve => setTimeout(resolve, 150));
     }
 
-    const response = await this.executeQuery(queryRequest);
+    const response = await this.executeAnalyticsCapped(queryRequest);
     if (!response.success) {
-      throw new Error(response.error || 'Query failed');
+      throw new Error(response.error || 'Capped analysis failed');
     }
 
-    const rows = response.data as Array<any>;
-
-    // Aggregate by ProcessingDateKey (sum amounts, count deals)
-    const aggMap = new Map<string, { CommitmentAmt: number; OutstandingAmt: number; Deals: number }>();
-
-    for (const row of rows) {
-      // Support both camel and snake case from backend
-      const key = String(row.ProcessingDateKey ?? row.processingdatekey);
-      const ca = Number(row.CommitmentAmt ?? row.commitmentamt ?? 0);
-      const oa = Number(row.OutstandingAmt ?? row.outstandingamt ?? 0);
-      const current = aggMap.get(key) || { CommitmentAmt: 0, OutstandingAmt: 0, Deals: 0 };
-      current.CommitmentAmt += isFinite(ca) ? ca : 0;
-      current.OutstandingAmt += isFinite(oa) ? oa : 0;
-      current.Deals += 1;
-      aggMap.set(key, current);
-    }
-
-    // Sort by date ascending
-    const dates = Array.from(aggMap.keys()).sort();
-
-    const records: AnalyticsRecord[] = [];
-    let prev: { key: string; CommitmentAmt: number; OutstandingAmt: number; Deals: number } | null = null;
-
-    for (const key of dates) {
-      const cur = aggMap.get(key)!;
-      const rec: AnalyticsRecord = {
-        ProcessingDateKey: key,
-        CommitmentAmt: cur.CommitmentAmt,
-        Deals: cur.Deals,
-        OutstandingAmt: cur.OutstandingAmt,
-        ProcessingDateKeyPrior: prev ? prev.key : '0',
-        CommitmentAmtPrior: prev ? prev.CommitmentAmt : 0,
-        OutstandingAmtPrior: prev ? prev.OutstandingAmt : 0,
-        DealsPrior: prev ? prev.Deals : 0,
-        ca_diff: prev && prev.CommitmentAmt > 0 ? (cur.CommitmentAmt - prev.CommitmentAmt) / prev.CommitmentAmt : null,
-        oa_diff: prev && prev.OutstandingAmt > 0 ? (cur.OutstandingAmt - prev.OutstandingAmt) / prev.OutstandingAmt : null,
-        deals_diff: prev && prev.Deals > 0 ? (cur.Deals - prev.Deals) / prev.Deals : null,
-        ca_model_diff: null,
-        oa_model_diff: null,
-        deals_model_diff: null,
-      };
-      records.push(rec);
-      prev = { key, ...cur };
-    }
-
-    return records;
+    // The backend returns the fully-processed AnalyticsRecord[] shape
+    return response.data as AnalyticsRecord[];
   }
 
   // Test the connection
