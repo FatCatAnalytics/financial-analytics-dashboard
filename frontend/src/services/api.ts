@@ -90,6 +90,29 @@ export interface SummaryStats {
   };
 }
 
+// Simple in-flight dedupe map and TTL cache
+type CacheEntry<T> = { value: T; expiresAt: number };
+const inflight = new Map<string, Promise<any>>();
+const cache = new Map<string, CacheEntry<any>>();
+
+function cacheKey(endpoint: string, body?: unknown) {
+  return `${endpoint}::${body ? JSON.stringify(body) : ''}`;
+}
+
+function getCached<T>(key: string): T | undefined {
+  const entry = cache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return undefined;
+  }
+  return entry.value as T;
+}
+
+function setCached<T>(key: string, value: T, ttlMs: number) {
+  cache.set(key, { value, expiresAt: Date.now() + ttlMs });
+}
+
 class ApiService {
   private baseUrl: string;
 
@@ -97,40 +120,55 @@ class ApiService {
     this.baseUrl = API_BASE_URL;
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async request<T>(endpoint: string, options: RequestInit = {}, cacheTtlMs = 0, dedupeKey?: string): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-        ...options,
-      });
+    const key = dedupeKey || cacheKey(endpoint, options.body);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error(`API request failed for ${endpoint}:`, error);
-      throw error;
+    if (cacheTtlMs > 0) {
+      const hit = getCached<T>(key);
+      if (hit !== undefined) return hit;
     }
+
+    if (inflight.has(key)) {
+      return inflight.get(key) as Promise<T>;
+    }
+
+    const p = (async () => {
+      try {
+        const response = await fetch(url, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...options.headers,
+          },
+          ...options,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        const data = (await response.json()) as T;
+        if (cacheTtlMs > 0) setCached(key, data, cacheTtlMs);
+        return data;
+      } finally {
+        inflight.delete(key);
+      }
+    })();
+
+    inflight.set(key, p);
+    return p;
   }
 
-  // Health check
+  // Health check (short cache)
   async healthCheck(): Promise<{ status: string; database: string; timestamp: string }> {
-    return this.request('/health');
+    return this.request('/health', {}, 5_000);
   }
 
-  // Connection status for the frontend dashboard
+  // Connection status for the frontend dashboard (short cache)
   async getConnectionStatus(): Promise<ConnectionStatus> {
     try {
-      return await this.request('/api/connection-status');
+      return await this.request('/api/connection-status', {}, 5_000);
     } catch (error) {
       return {
         isConnected: false,
@@ -140,39 +178,39 @@ class ApiService {
     }
   }
 
-  // Get filter options
+  // Get filter options (longer cache)
   async getFilterOptions(): Promise<FilterOptions> {
-    return this.request('/api/filter-options');
+    return this.request('/api/filter-options', {}, 60_000);
   }
 
-  // Execute filtered query
+  // Execute filtered query (no cache, dedupe by body)
   async executeQuery(queryRequest: QueryRequest): Promise<ApiResponse<any[]>> {
     return this.request('/api/query', {
       method: 'POST',
       body: JSON.stringify(queryRequest),
-    });
+    }, 0);
   }
 
-  // Get analytics data (time series)
+  // Get analytics data (cache by limit)
   async getAnalyticsData(limit?: number): Promise<ApiResponse<AnalyticsRecord[]>> {
     const params = limit ? `?limit=${limit}` : '';
-    return this.request(`/api/analytics-data${params}`);
+    return this.request(`/api/analytics-data${params}`, {}, 30_000, `/api/analytics-data${params}`);
   }
 
-  // Get summary statistics
+  // Get summary statistics (cache)
   async getSummaryStats(): Promise<ApiResponse<{ summary: SummaryStats; latestMonth: any }>> {
-    return this.request('/api/summary-stats');
+    return this.request('/api/summary-stats', {}, 30_000);
   }
 
-  // Execute capped vs uncapped analysis
+  // Execute capped vs uncapped analysis (no cache, dedupe by body)
   async executeCappedAnalysis(queryRequest: QueryRequest): Promise<ApiResponse<any[]>> {
     return this.request('/api/execute-capped-analysis', {
       method: 'POST',
       body: JSON.stringify(queryRequest),
-    });
+    }, 0);
   }
 
-  // Simulate the query execution with progress updates (now calls capped analysis)
+  // Simulate the query execution with progress updates (calls capped analysis)
   async simulateQueryExecution(
     queryRequest: QueryRequest,
     onProgress?: (message: string) => void
@@ -186,14 +224,10 @@ class ApiService {
     ];
 
     for (let i = 0; i < progressMessages.length; i++) {
-      if (onProgress) {
-        onProgress(progressMessages[i]);
-      }
-      // Simulate processing time
+      if (onProgress) onProgress(progressMessages[i]);
       await new Promise(resolve => setTimeout(resolve, 400 + Math.random() * 600));
     }
 
-    // Execute the actual capped vs uncapped analysis
     const response = await this.executeCappedAnalysis(queryRequest);
     if (!response.success) {
       throw new Error(response.error || 'Failed to execute capped analysis');
@@ -202,7 +236,7 @@ class ApiService {
     return response.data;
   }
 
-  // Test the connection
+  // Test the connection (cache short)
   async testConnection(): Promise<boolean> {
     try {
       const status = await this.getConnectionStatus();

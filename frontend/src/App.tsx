@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
@@ -38,6 +38,10 @@ export default function App() {
   const [queryProgress, setQueryProgress] = useState<string>('');
   const [lastDataUpdate, setLastDataUpdate] = useState<Date | null>(null);
   const [filterOptions, setFilterOptions] = useState<any>(null);
+
+  // Guards to avoid duplicate calls
+  const hasInitiatedRef = useRef(false);
+  const runningRef = useRef(false);
 
   const handleFilterChange = (filterType: keyof SelectedFilters, values: string[]) => {
     setSelectedFilters(prev => ({
@@ -90,19 +94,19 @@ export default function App() {
 
   // Connect to database on mount
   useEffect(() => {
+    if (hasInitiatedRef.current) return;
+    hasInitiatedRef.current = true;
+
     const connectToDatabase = async () => {
       setIsConnecting(true);
       
       try {
-        // Test the actual database connection
         const connectionStatus = await apiService.getConnectionStatus();
         
         if (connectionStatus.isConnected) {
           setIsConnected(true);
           setConnectionError(null);
           setLastConnectionTime(new Date(connectionStatus.lastConnectionTime || new Date().toISOString()));
-          
-          // Load filter options after successful connection
           await loadFilterOptions();
         } else {
           throw new Error(connectionStatus.error || 'Unable to connect to PostgreSQL database');
@@ -123,14 +127,12 @@ export default function App() {
     setIsLoadingFilters(true);
     
     try {
-      // Load actual filter options from database
       const options = await apiService.getFilterOptions();
       setFilterOptions(options);
       setIsLoadingFilters(false);
     } catch (error) {
       setIsLoadingFilters(false);
       console.error('Failed to load filter options:', error);
-      // Fallback to empty options
       setFilterOptions({
         lineOfBusiness: [],
         commitmentSizeGroup: [],
@@ -143,11 +145,12 @@ export default function App() {
   };
 
   const handleRetryConnection = async () => {
+    if (isConnecting) return;
+
     setConnectionError(null);
     setIsConnecting(true);
     
     try {
-      // Test the actual database connection
       const connectionStatus = await apiService.getConnectionStatus();
       
       if (connectionStatus.isConnected) {
@@ -166,21 +169,18 @@ export default function App() {
   };
 
   const handleRunQuery = async () => {
-    if (!isConnected) {
-      return;
-    }
+    if (!isConnected || runningRef.current) return;
+    runningRef.current = true;
 
     setIsLoading(true);
     
     try {
-      // Convert date filters to API format
       const apiDateFilters = selectedFilters.dateFilters.map(filter => ({
         operator: filter.operator,
         startDate: filter.startDate.toISOString(),
         ...(filter.endDate ? { endDate: filter.endDate.toISOString() } : {})
       }));
 
-      // Use the API service to simulate query execution with progress updates
       const analyticsData = await apiService.simulateQueryExecution(
         {
           filters: {
@@ -194,7 +194,6 @@ export default function App() {
         }
       );
       
-      // Convert AnalyticsRecord[] to AnalyticsData[] format expected by frontend
       const convertedData: AnalyticsData[] = analyticsData.map(record => ({
         ProcessingDateKey: record.ProcessingDateKey,
         CommitmentAmt: record.CommitmentAmt,
@@ -222,6 +221,7 @@ export default function App() {
       setQueryProgress('Query failed. Please try again.');
     } finally {
       setIsLoading(false);
+      runningRef.current = false;
     }
   };
 
@@ -238,7 +238,6 @@ export default function App() {
     const latest = queryResults[queryResults.length - 1];
     const dateStr = latest.ProcessingDateKey.toString();
     
-    // Parse YYYYMMDD format
     if (dateStr.length === 8) {
       const year = dateStr.substring(0, 4);
       const month = dateStr.substring(4, 6);
@@ -247,12 +246,11 @@ export default function App() {
       return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     }
     
-    return null; // No valid date found
+    return null;
   };
 
-  // Calculate total commitment from all data
   const getTotalCommitment = () => {
-    if (queryResults.length === 0) return 0; // No data available
+    if (queryResults.length === 0) return 0;
     return queryResults.reduce((total, record) => total + (record.CommitmentAmt || 0), 0);
   };
 
@@ -297,6 +295,7 @@ export default function App() {
                     size="sm" 
                     onClick={handleRetryConnection}
                     className="flex items-center gap-2 bg-white/50 hover:bg-white/80"
+                    disabled={isConnecting}
                   >
                     <RefreshCw className="w-4 h-4" />
                     Retry Connection
@@ -376,7 +375,7 @@ export default function App() {
                   onDateFilterRemove={handleDateFilterRemove}
                   onClearFilters={handleClearFilters}
                   onRunQuery={handleRunQuery}
-                  disabled={!isConnected}
+                  disabled={!isConnected || isLoading}
                 />
               </div>
             )}
