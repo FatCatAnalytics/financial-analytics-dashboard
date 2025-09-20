@@ -42,6 +42,7 @@ db_pool = None
 cache = {
     'filter_options': {'data': None, 'timestamp': None, 'ttl': 300},  # 5 min TTL
     'summary_stats': {'data': None, 'timestamp': None, 'ttl': 60},    # 1 min TTL
+    'latest_snapshot': {'data': None, 'timestamp': None, 'ttl': 30},  # 30s TTL
 }
 
 # Database configuration
@@ -500,6 +501,60 @@ async def get_analytics_data(limit: Optional[int] = None):
     except Exception as e:
         logger.error(f"Analytics data query failed: {e}")
         raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}") from e
+
+@app.get("/api/latest-snapshot")
+async def get_latest_snapshot():
+    """Get latest period, deals, totals, and freshness indicator quickly"""
+    # Cache check
+    cached = get_cached_data('latest_snapshot')
+    if cached:
+        logger.info("Returning cached latest snapshot")
+        return cached
+
+    try:
+        conn = await get_db_connection()
+        query = """
+        WITH latest AS (
+            SELECT MAX(processingdatekey) AS max_key FROM analytics_data
+        )
+        SELECT 
+            l.max_key AS processingdatekey,
+            COUNT(*) AS deals,
+            COALESCE(SUM(commitmentamt), 0) AS total_commitment,
+            COALESCE(SUM(outstandingamt), 0) AS total_outstanding
+        FROM analytics_data a
+        JOIN latest l ON a.processingdatekey = l.max_key
+        """
+        row = await conn.fetchrow(query)
+        await release_db_connection(conn)
+
+        latest_key = row['processingdatekey'] if row else None
+        # Freshness: stale if not current month
+        is_stale = True
+        if latest_key:
+            try:
+                latest_str = str(latest_key)
+                year = int(latest_str[0:4])
+                month = int(latest_str[4:6])
+                now = datetime.now()
+                is_stale = (year != now.year) or (month != now.month)
+            except Exception:
+                is_stale = True
+        
+        payload = {
+            'success': True,
+            'latestPeriod': str(latest_key) if latest_key else None,
+            'deals': int(row['deals']) if row and row['deals'] is not None else 0,
+            'totalCommitment': float(row['total_commitment']) if row and row['total_commitment'] is not None else 0.0,
+            'totalOutstanding': float(row['total_outstanding']) if row and row['total_outstanding'] is not None else 0.0,
+            'isStale': is_stale,
+        }
+        set_cached_data('latest_snapshot', payload)
+        return payload
+    
+    except Exception as e:
+        logger.error(f"Latest snapshot query failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}")
 
 @app.get("/api/summary-stats")
 async def get_summary_stats():

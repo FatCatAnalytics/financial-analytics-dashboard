@@ -90,6 +90,15 @@ export interface SummaryStats {
   };
 }
 
+export interface LatestSnapshotResponse {
+  success: boolean;
+  latestPeriod: string | null;
+  deals: number;
+  totalCommitment: number;
+  totalOutstanding: number;
+  isStale: boolean;
+}
+
 class ApiService {
   private baseUrl: string;
   private inflightRequests: Map<string, Promise<any>>;
@@ -214,6 +223,11 @@ class ApiService {
   async getSummaryStats(): Promise<ApiResponse<{ summary: SummaryStats; latestMonth: any }>> {
     // Cache summary for 60 seconds (backend also caches)
     return this.request('/api/summary-stats', {}, { cacheTtlMs: 60_000 });
+  }
+
+  // Get latest snapshot: latestPeriod, totals, deals, freshness
+  async getLatestSnapshot(): Promise<LatestSnapshotResponse> {
+    return this.request('/api/latest-snapshot', {}, { cacheTtlMs: 30_000 });
   }
 
   // Execute capped vs uncapped analysis

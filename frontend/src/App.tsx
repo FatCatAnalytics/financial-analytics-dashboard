@@ -35,9 +35,11 @@ export default function App() {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [lastConnectionTime, setLastConnectionTime] = useState<Date | null>(null);
   const [isLoadingFilters, setIsLoadingFilters] = useState(true);
+  const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(true);
   const [queryProgress, setQueryProgress] = useState<string>('');
   const [lastDataUpdate, setLastDataUpdate] = useState<Date | null>(null);
   const [filterOptions, setFilterOptions] = useState<any>(null);
+  const [snapshot, setSnapshot] = useState<{ latestPeriod: string | null; deals: number; totalCommitment: number; totalOutstanding: number; isStale: boolean } | null>(null);
 
   const handleFilterChange = (filterType: keyof SelectedFilters, values: string[]) => {
     setSelectedFilters(prev => ({
@@ -102,7 +104,13 @@ export default function App() {
           setConnectionError(null);
           setLastConnectionTime(new Date(connectionStatus.lastConnectionTime || new Date().toISOString()));
           
-          // Load filter options after successful connection
+          // Step 1: fetch latest snapshot first (fast path)
+          setIsLoadingSnapshot(true);
+          const latest = await apiService.getLatestSnapshot();
+          setSnapshot(latest);
+          setIsLoadingSnapshot(false);
+          
+          // Step 2: load filter options
           await loadFilterOptions();
         } else {
           throw new Error(connectionStatus.error || 'Unable to connect to PostgreSQL database');
@@ -111,6 +119,7 @@ export default function App() {
       } catch (error) {
         setConnectionError(error instanceof Error ? error.message : 'Connection failed');
         setIsConnected(false);
+        setIsLoadingSnapshot(false);
       } finally {
         setIsConnecting(false);
       }
@@ -153,6 +162,11 @@ export default function App() {
       if (connectionStatus.isConnected) {
         setIsConnected(true);
         setLastConnectionTime(new Date(connectionStatus.lastConnectionTime || new Date().toISOString()));
+        // Reload snapshot then filters
+        setIsLoadingSnapshot(true);
+        const latest = await apiService.getLatestSnapshot();
+        setSnapshot(latest);
+        setIsLoadingSnapshot(false);
         await loadFilterOptions();
       } else {
         throw new Error(connectionStatus.error || 'Unable to connect to PostgreSQL database');
@@ -160,6 +174,7 @@ export default function App() {
     } catch (error) {
       setConnectionError(error instanceof Error ? error.message : 'Connection failed');
       setIsConnected(false);
+      setIsLoadingSnapshot(false);
     } finally {
       setIsConnecting(false);
     }
@@ -314,9 +329,9 @@ export default function App() {
           connectionError={connectionError || undefined}
           lastConnectionTime={lastConnectionTime || undefined}
           lastDataUpdate={lastDataUpdate || undefined}
-          recordCount={queryResults.length}
-          latestPeriod={getLatestPeriod() || undefined}
-          totalCommitment={getTotalCommitment()}
+          recordCount={snapshot?.deals || 0}
+          latestPeriod={(snapshot?.latestPeriod || getLatestPeriod()) || undefined}
+          totalCommitment={snapshot?.totalCommitment ?? getTotalCommitment()}
         />
 
         {/* Connection Status Card (shown when there are issues) */}
