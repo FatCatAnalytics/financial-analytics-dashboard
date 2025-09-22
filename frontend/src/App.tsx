@@ -38,6 +38,10 @@ export default function App() {
   const [queryProgress, setQueryProgress] = useState<string>('');
   const [lastDataUpdate, setLastDataUpdate] = useState<Date | null>(null);
   const [filterOptions, setFilterOptions] = useState<any>(null);
+  
+  // Summary stats for the whole dataset (for StatusDashboard)
+  const [summaryStats, setSummaryStats] = useState<any>(null);
+  const [isLoadingSummaryStats, setIsLoadingSummaryStats] = useState(false);
 
   // Guards to avoid duplicate calls
   const hasInitiatedRef = useRef(false);
@@ -107,6 +111,11 @@ export default function App() {
           setIsConnected(true);
           setConnectionError(null);
           setLastConnectionTime(new Date(connectionStatus.lastConnectionTime || new Date().toISOString()));
+          
+          // Load summary stats first (for StatusDashboard with whole dataset)
+          await loadSummaryStats();
+          
+          // Then load filter options
           await loadFilterOptions();
         } else {
           throw new Error(connectionStatus.error || 'Unable to connect to PostgreSQL database');
@@ -122,6 +131,25 @@ export default function App() {
 
     connectToDatabase();
   }, []);
+
+  const loadSummaryStats = async () => {
+    setIsLoadingSummaryStats(true);
+    
+    try {
+      const response = await apiService.getSummaryStats();
+      if (response.success) {
+        setSummaryStats(response.data);
+      } else {
+        console.error('Failed to load summary stats:', response.error);
+        setSummaryStats(null);
+      }
+    } catch (error) {
+      console.error('Failed to load summary stats:', error);
+      setSummaryStats(null);
+    } finally {
+      setIsLoadingSummaryStats(false);
+    }
+  };
 
   const loadFilterOptions = async () => {
     setIsLoadingFilters(true);
@@ -156,6 +184,11 @@ export default function App() {
       if (connectionStatus.isConnected) {
         setIsConnected(true);
         setLastConnectionTime(new Date(connectionStatus.lastConnectionTime || new Date().toISOString()));
+        
+        // Load summary stats first (for StatusDashboard with whole dataset)
+        await loadSummaryStats();
+        
+        // Then load filter options
         await loadFilterOptions();
       } else {
         throw new Error(connectionStatus.error || 'Unable to connect to PostgreSQL database');
@@ -232,7 +265,7 @@ export default function App() {
     return acc + (value as string[]).length;
   }, 0);
 
-  // Get latest period from data (ProcessingDateKey is YYYYMMDD format)
+  // Get latest period from data (ProcessingDateKey is YYYYMMDD format) - for query results
   const getLatestPeriod = () => {
     if (queryResults.length === 0) return null;
     const latest = queryResults[queryResults.length - 1];
@@ -249,9 +282,37 @@ export default function App() {
     return null;
   };
 
-  const getTotalCommitment = () => {
-    if (queryResults.length === 0) return 0;
-    return queryResults.reduce((total, record) => total + (record.CommitmentAmt || 0), 0);
+
+  // Get data for StatusDashboard from whole dataset summary stats
+  const getStatusDashboardData = () => {
+    if (!summaryStats || !summaryStats.summary) {
+      return {
+        recordCount: 0,
+        latestPeriod: undefined,
+        totalCommitment: 0
+      };
+    }
+
+    const { summary } = summaryStats;
+    
+    // Format latest date from summary stats
+    let latestPeriod: string | undefined;
+    if (summary.dateRange?.latest) {
+      const dateStr = summary.dateRange.latest;
+      if (dateStr.length === 8) {
+        const year = dateStr.substring(0, 4);
+        const month = dateStr.substring(4, 6);
+        const day = dateStr.substring(6, 8);
+        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        latestPeriod = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      }
+    }
+
+    return {
+      recordCount: summary.totalRecords || 0,
+      latestPeriod,
+      totalCommitment: summary.totals?.commitment || 0
+    };
   };
 
   return (
@@ -309,13 +370,13 @@ export default function App() {
         {/* Status Dashboard */}
         <StatusDashboard
           isConnected={isConnected}
-          isConnecting={isConnecting}
+          isConnecting={isConnecting || isLoadingSummaryStats}
           connectionError={connectionError || undefined}
           lastConnectionTime={lastConnectionTime || undefined}
           lastDataUpdate={lastDataUpdate || undefined}
-          recordCount={queryResults.length}
-          latestPeriod={getLatestPeriod() || undefined}
-          totalCommitment={getTotalCommitment()}
+          recordCount={getStatusDashboardData().recordCount}
+          latestPeriod={getStatusDashboardData().latestPeriod}
+          totalCommitment={getStatusDashboardData().totalCommitment}
         />
 
         {/* Connection Status Card (shown when there are issues) */}
